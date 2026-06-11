@@ -321,27 +321,14 @@
 const MONTHS = ['Януари','Февруари','Март','Април','Май','Юни','Юли','Август','Септември','Октомври','Ноември','Декември'];
 const CAT_NAMES = { fixed:'Фиксирани', health:'Здраве', family:'Семейство', food:'Храна', other:'Разни' };
 const CATS = ['fixed','health','family','food','other'];
-const DEFAULTS = [
-  {id:'e1',  cat:'fixed',  icon:'⚡',  name:'Ток, вода, телефон, ТВ',       amount:150, note:'Всеки месец',                   enabled:true},
-  {id:'e2',  cat:'health', icon:'💊',  name:'Лекарства',                    amount:100, note:'Всеки месец',                   enabled:true},
-  {id:'e3',  cat:'health', icon:'👁️', name:'Очни манипулации',             amount:100, note:'3 месеца поред, после почивка', enabled:true},
-  {id:'e4',  cat:'family', icon:'👦',  name:'За внука',                     amount:100, note:'Всеки месец',                   enabled:true},
-  {id:'e5',  cat:'food',   icon:'🥩',  name:'Месо',                         amount:60,  note:'',                              enabled:true},
-  {id:'e6',  cat:'food',   icon:'🍎',  name:'Плодове и зеленчуци',          amount:50,  note:'',                              enabled:true},
-  {id:'e7',  cat:'food',   icon:'🥡',  name:'Готови храни',                 amount:40,  note:'Потенциал за намаляване',       enabled:true},
-  {id:'e8',  cat:'other',  icon:'⚰️',  name:'Гробища (цветя + транспорт)', amount:60,  note:'2-3 пъти месечно × 30 €',      enabled:true},
-  {id:'e9',  cat:'other',  icon:'👗',  name:'Дрехи',                        amount:0,   note:'~100 € на ~3 месеца',          enabled:true},
-  {id:'e10', cat:'other',  icon:'🧴',  name:'Домакински консумативи',       amount:25,  note:'Препарати, тоалетни',          enabled:true},
-  {id:'e11', cat:'other',  icon:'☕',  name:'Кафе и малки удоволствия',     amount:20,  note:'',                              enabled:true},
-  {id:'e12', cat:'other',  icon:'🔧',  name:'Ремонти / непредвидени',       amount:30,  note:'Резервен фонд',                enabled:true},
-];
+const DEFAULTS = [];
 
 const n = new Date();
 let S = { allData:{}, year:n.getFullYear(), month:n.getMonth(), debounce:null };
 
 const mk=(y,m)=>`${y}_${m}`;
 const mLbl=(y,m)=>`${MONTHS[m]} ${y}`;
-function monthData(){const k=mk(S.year,S.month);if(!S.allData[k])S.allData[k]={income:0,expenses:JSON.parse(JSON.stringify(DEFAULTS)).map(e=>({...e,amount:0})),notes:''};return S.allData[k];}
+function monthData(){const k=mk(S.year,S.month);if(!S.allData[k])S.allData[k]={income:0,expenses:[],notes:''};return S.allData[k];}
 function totals(md){const i=+md.income||0;const e=md.expenses.filter(x=>x.enabled).reduce((s,x)=>s+(+x.amount||0),0);return{income:i,exp:e,bal:i-e};}
 function cls(b){return b>80?'pos':b>=0?'warn':'neg';}
 function statusText(b){if(b>120)return'🌟 Отличен месец';if(b>=80)return'✅ Балансиран';if(b>=0)return'⚠️ Много стегнат';return`🚨 Дефицит ${Math.abs(b).toFixed(0)} €`;}
