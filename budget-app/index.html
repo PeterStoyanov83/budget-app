@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#c8a84b">
+  <meta name="description" content="Личен бюджетен тракер">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Бюджет">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.json">
+  <title>Моят Бюджет</title>
+  <style>
+    :root {
+      --bg:        #0e0e0e;
+      --surface:   #171717;
+      --card:      #1f1f1f;
+      --border:    #2a2a2a;
+      --text:      #e8e4dc;
+      --muted:     #888888;
+      --accent:    #c8a84b;
+      --accent-dim:#7a6228;
+      --green:     #4caf7d;
+      --red:       #e06060;
+      --warn:      #e0a040;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      display: flex;
+      justify-content: center;
+      overflow-x: hidden;
+    }
+    #app { width: 100%; max-width: 480px; min-height: 100dvh; display: flex; flex-direction: column; }
+
+    /* LOADING */
+    #loading {
+      position: fixed; inset: 0; background: var(--bg); z-index: 400;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    }
+    #loading.hidden { display: none; }
+    .spinner {
+      width: 38px; height: 38px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { color: var(--muted); font-size: 14px; }
+
+    /* HEADER */
+    .app-header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding-top: env(safe-area-inset-top);
+    }
+    .header-row {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 52px; padding: 0 16px;
+    }
+    .app-title { font-size: 17px; font-weight: 600; }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .sync-badge {
+      font-size: 12px; color: var(--muted);
+      display: flex; align-items: center; gap: 4px; cursor: default;
+    }
+    .sync-badge.syncing { color: var(--warn); animation: pulse 1s ease-in-out infinite; }
+    .sync-badge.synced  { color: var(--green); }
+    .sync-badge.offline { color: var(--muted); }
+    .sync-badge.error   { color: var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+    .btn-icon {
+      background: none; border: none; cursor: pointer; font-size: 18px; color: var(--text);
+      min-width: 40px; min-height: 40px; display: flex; align-items: center; justify-content: center;
+      border-radius: 8px;
+    }
+    .btn-icon:hover { background: var(--card); }
+    .retry-btn { background: none; border: none; color: var(--accent); font-size: 11px; cursor: pointer; text-decoration: underline; }
+
+    /* MONTH NAV */
+    .month-nav {
+      display: flex; align-items: center; justify-content: center;
+      height: 40px; border-top: 1px solid var(--border); gap: 4px;
+    }
+    .month-nav.hidden { display: none; }
+    .mnav-btn {
+      background: none; border: none; cursor: pointer; color: var(--muted); font-size: 22px;
+      min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;
+    }
+    .mnav-btn:hover { color: var(--text); }
+    .month-label { font-size: 15px; font-weight: 600; color: var(--accent); min-width: 150px; text-align: center; }
+
+    /* MAIN */
+    .main-content {
+      flex: 1; overflow-y: auto;
+      padding-bottom: calc(56px + env(safe-area-inset-bottom) + 12px);
+    }
+    .tab-panel { display: none; padding: 14px 16px; }
+    .tab-panel.active { display: block; }
+
+    /* BOTTOM NAV */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 100%; max-width: 480px;
+      height: calc(56px + env(safe-area-inset-bottom));
+      background: var(--surface); border-top: 1px solid var(--border);
+      display: flex; z-index: 100;
+    }
+    .nav-btn {
+      flex: 1; background: none; border: none; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      padding-bottom: env(safe-area-inset-bottom); color: var(--muted);
+    }
+    .nav-btn.active { color: var(--accent); }
+    .nav-icon { font-size: 20px; }
+    .nav-label { font-size: 11px; }
+
+    /* HERO */
+    .hero {
+      background: var(--card); border-radius: 12px;
+      padding: 18px; text-align: center; margin-bottom: 12px;
+    }
+    .hero-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .hero-amount { font-family: Georgia, serif; font-size: 44px; font-weight: bold; line-height: 1; }
+    .hero-amount.pos { color: var(--green); }
+    .hero-amount.warn { color: var(--warn); }
+    .hero-amount.neg { color: var(--red); }
+    .hero-sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+    /* PROGRESS */
+    .progress-wrap { margin-bottom: 12px; }
+    .prog-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+    .prog-track { height: 7px; background: var(--card); border-radius: 4px; overflow: hidden; }
+    .prog-fill { height: 100%; border-radius: 4px; transition: width .35s ease; }
+    .prog-fill.pos { background: var(--green); }
+    .prog-fill.warn { background: var(--warn); }
+    .prog-fill.neg { background: var(--red); }
+
+    /* SUMMARY CARDS */
+    .summary-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 12px; }
+    .sum-card { background: var(--card); border-radius: 10px; padding: 11px 8px; text-align: center; }
+    .sum-label { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+    .sum-val { font-family: Georgia, serif; font-size: 16px; font-weight: bold; }
+    .sum-val.green { color: var(--green); }
+    .sum-val.red   { color: var(--red); }
+    .sum-val.gold  { color: var(--accent); }
+
+    /* STATUS BAR */
+    .status-bar {
+      background: var(--card); border-radius: 10px; padding: 9px 14px;
+      text-align: center; margin-bottom: 12px; font-size: 13px; font-weight: 500;
+    }
+
+    /* INCOME */
+    .income-card { background: var(--card); border-radius: 12px; margin-bottom: 12px; }
+    .income-row { display: flex; align-items: center; padding: 13px 16px; gap: 10px; }
+    .income-icon { font-size: 20px; }
+    .income-lbl { flex: 1; font-size: 14px; font-weight: 500; }
+    .income-input {
+      font-family: Georgia, serif; font-size: 19px; font-weight: bold; color: var(--green);
+      background: none; border: none; outline: none; text-align: right; width: 90px;
+    }
+    .cur { color: var(--muted); font-size: 13px; }
+
+    /* EXPENSE SECTIONS */
+    .exp-section { background: var(--card); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+    .exp-section-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 16px 8px; border-bottom: 1px solid var(--border);
+    }
+    .exp-cat-name { font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--accent); }
+    .exp-cat-total { font-family: Georgia, serif; font-size: 15px; font-weight: bold; }
+    .exp-row {
+      display: flex; align-items: flex-start; padding: 10px 16px;
+      border-bottom: 1px solid var(--border); gap: 10px; transition: opacity .15s;
+    }
+    .exp-row:last-of-type { border-bottom: none; }
+    .exp-row.disabled { opacity: .4; }
+    .exp-emoji { font-size: 20px; min-width: 26px; padding-top: 1px; }
+    .exp-info { flex: 1; min-width: 0; }
+    .exp-name { font-size: 14px; }
+    .exp-note { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .exp-right { display: flex; align-items: center; gap: 6px; }
+    .exp-amt-wrap { display: flex; align-items: center; gap: 3px; }
+    .exp-amount {
+      font-family: Georgia, serif; font-size: 16px; font-weight: bold;
+      background: none; border: none; outline: none; text-align: right;
+      width: 66px; color: var(--text);
+    }
+    .exp-row.disabled .exp-amt-wrap { text-decoration: line-through; }
+    .exp-toggle { width: 22px; height: 22px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+
+    /* ADD EXPENSE */
+    .add-exp-btn {
+      width: 100%; border: none; border-top: 1px solid var(--border);
+      background: none; padding: 11px; color: var(--muted); font-size: 13px;
+      cursor: pointer; text-align: center; border-radius: 0 0 12px 12px;
+    }
+    .add-exp-btn:hover { color: var(--accent); background: rgba(200,168,75,.05); }
+    .add-exp-form {
+      border-top: 1px solid var(--border); padding: 12px 16px;
+      display: flex; gap: 8px; align-items: center;
+    }
+    .add-exp-form.hidden { display: none; }
+    .add-name-input {
+      flex: 1; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 10px; color: var(--text); font-size: 13px;
+      outline: none; font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    .add-name-input:focus { border-color: var(--accent-dim); }
+    .add-amt-input {
+      width: 70px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 10px; color: var(--text); font-size: 13px;
+      outline: none; text-align: right; font-family: Georgia, serif;
+    }
+    .add-amt-input:focus { border-color: var(--accent-dim); }
+    .add-confirm {
+      background: var(--accent); color: #0e0e0e; border: none; border-radius: 8px;
+      width: 34px; height: 34px; font-size: 16px; cursor: pointer; font-weight: bold;
+    }
+    .add-cancel {
+      background: var(--card); color: var(--muted); border: 1px solid var(--border);
+      border-radius: 8px; width: 34px; height: 34px; font-size: 16px; cursor: pointer;
+    }
+
+    /* NOTES */
+    .notes-card { background: var(--card); border-radius: 12px; padding: 13px 16px; margin-bottom: 4px; }
+    .notes-ta {
+      width: 100%; min-height: 70px; background: none; border: none; outline: none;
+      color: var(--text); font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px; resize: none; line-height: 1.5;
+    }
+    .notes-ta::placeholder { color: var(--muted); }
+
+    /* HISTORY */
+    .history-list { display: flex; flex-direction: column; gap: 8px; }
+    .hist-item {
+      background: var(--card); border-radius: 12px; padding: 13px 16px;
+      display: flex; align-items: center; cursor: pointer; gap: 10px;
+    }
+    .hist-item:hover { background: #252525; }
+    .hist-month { flex: 1; }
+    .hist-name { font-size: 15px; font-weight: 600; }
+    .hist-detail { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .hist-bal { font-family: Georgia, serif; font-size: 17px; font-weight: bold; }
+    .hist-bal.pos { color: var(--green); }
+    .hist-bal.warn { color: var(--warn); }
+    .hist-bal.neg { color: var(--red); }
+    .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 15px; line-height: 1.6; }
+
+    /* TIPS */
+    .tips-list { display: flex; flex-direction: column; gap: 12px; }
+    .tip-card { background: var(--card); border-radius: 12px; padding: 14px 16px; border-left: 4px solid var(--muted); }
+    .tip-card.green { border-left-color: var(--green); }
+    .tip-card.gold  { border-left-color: var(--accent); }
+    .tip-card.blue  { border-left-color: #5b9bd5; }
+    .tip-card.red   { border-left-color: var(--red); }
+    .tip-title { font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+    .tip-body { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .tip-badge {
+      display: inline-block; margin-top: 8px; background: var(--surface);
+      border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600;
+    }
+    .tip-summary {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px;
+    }
+    .tip-sum-line { font-size: 13px; color: var(--muted); line-height: 1.9; }
+    .tip-sum-line strong { color: var(--text); }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 200;
+      display: flex; align-items: flex-end; justify-content: center;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-sheet {
+      background: var(--surface); border-radius: 20px 20px 0 0;
+      width: 100%; max-width: 480px; max-height: 92dvh; overflow-y: auto;
+      padding: 20px 20px calc(24px + env(safe-area-inset-bottom));
+    }
+    .modal-handle { width: 38px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 18px; }
+    .modal-title { font-size: 20px; font-weight: 700; margin-bottom: 7px; }
+    .modal-subtitle { font-size: 13px; color: var(--muted); line-height: 1.55; margin-bottom: 18px; }
+    .modal-close {
+      position: absolute; top: 14px; right: 14px; background: none; border: none;
+      cursor: pointer; color: var(--muted); font-size: 24px;
+      min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;
+    }
+
+    /* SETUP */
+    .steps-list { list-style: none; margin-bottom: 18px; }
+    .steps-list li { display: flex; gap: 11px; padding: 6px 0; }
+    .step-n {
+      min-width: 21px; height: 21px; background: var(--accent-dim); color: var(--accent);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+    }
+    .step-t { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .step-t strong { color: var(--text); }
+
+    /* FORMS */
+    .form-group { margin-bottom: 14px; }
+    .form-input {
+      width: 100%; background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px; color: var(--text); font-size: 14px;
+      outline: none; font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    .form-input:focus { border-color: var(--accent-dim); }
+    .form-input::placeholder { color: var(--muted); }
+    .form-error { color: var(--red); font-size: 12px; margin-top: 5px; display: none; }
+    .form-error.show { display: block; }
+
+    /* BUTTONS */
+    .btn-primary {
+      width: 100%; background: var(--accent); color: #0e0e0e; border: none;
+      border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary:not(:disabled):hover { background: #d4b55a; }
+    .btn-secondary {
+      width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--border);
+      border-radius: 10px; padding: 11px; font-size: 14px; cursor: pointer; margin-bottom: 8px;
+    }
+    .btn-secondary:hover { background: #252525; }
+    .btn-danger {
+      width: 100%; background: none; color: var(--red); border: 1px solid rgba(224,96,96,.4);
+      border-radius: 10px; padding: 11px; font-size: 14px; cursor: pointer;
+    }
+    .btn-danger:hover { background: rgba(224,96,96,.08); }
+
+    /* OPTION CARDS */
+    .option-cards { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .opt-card {
+      background: var(--card); border: 2px solid var(--border);
+      border-radius: 12px; padding: 15px; cursor: pointer; transition: border-color .15s;
+    }
+    .opt-card.primary { border-color: var(--accent-dim); }
+    .opt-card:hover { border-color: var(--accent-dim); }
+    .opt-card-title { font-size: 15px; font-weight: 600; margin-bottom: 3px; }
+    .opt-card-desc { font-size: 12px; color: var(--muted); }
+
+    /* SETTINGS */
+    .settings-item { background: var(--card); border-radius: 10px; padding: 13px 15px; margin-bottom: 8px; }
+    .settings-lbl { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+    .settings-val { font-size: 14px; font-weight: 500; word-break: break-all; }
+    .settings-link { color: var(--accent); text-decoration: none; font-size: 12px; display: block; margin-top: 4px; }
+    .divider { height: 1px; background: var(--border); margin: 14px 0; }
+
+    /* TOAST */
+    #toast {
+      position: fixed; top: 14px; left: 50%;
+      transform: translateX(-50%) translateY(-90px);
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 9px 18px; font-size: 13px; font-weight: 500; z-index: 500;
+      transition: transform .28s ease; max-width: calc(100vw - 32px); text-align: center;
+      white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,.5);
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.success { color: var(--green); }
+    #toast.error   { color: var(--red); }
+    #toast.info    { color: var(--accent); }
+
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    input[type=number] { -moz-appearance: textfield; }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">Зареждане...</div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Setup Modal -->
+<div id="setup-modal" class="modal-overlay hidden">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+
+    <!-- Step 1 -->
+    <div id="s1">
+      <div class="modal-title">Свържи с GitHub</div>
+      <div class="modal-subtitle">
+        Данните ти ще се пазят в GitHub Gist — безплатно, сигурно, достъпно от всеки телефон.
+      </div>
+      <ol class="steps-list">
+        <li><span class="step-n">1</span><span class="step-t">Отиди на <strong>github.com/settings/tokens</strong></span></li>
+        <li><span class="step-n">2</span><span class="step-t">Кликни „Generate new token (classic)"</span></li>
+        <li><span class="step-n">3</span><span class="step-t">Дай му име: „<strong>Моят Бюджет</strong>"</span></li>
+        <li><span class="step-n">4</span><span class="step-t">Отметни само: <strong>gist</strong></span></li>
+        <li><span class="step-n">5</span><span class="step-t">Кликни „Generate token"</span></li>
+        <li><span class="step-n">6</span><span class="step-t">Копирай токена и го постави тук</span></li>
+      </ol>
+      <div class="form-group">
+        <input type="password" id="token-input" class="form-input" placeholder="Постави токена тук..." autocomplete="off">
+        <div id="token-err" class="form-error"></div>
+      </div>
+      <button id="token-btn" class="btn-primary">Продължи →</button>
+    </div>
+
+    <!-- Step 2 -->
+    <div id="s2" style="display:none">
+      <div class="modal-title">Gist хранилище</div>
+      <div class="modal-subtitle">Изберете как да се пазят данните.</div>
+      <div class="option-cards" id="gist-options">
+        <div class="opt-card primary" id="create-gist-btn">
+          <div class="opt-card-title">✨ Създай нов Gist</div>
+          <div class="opt-card-desc">Препоръчително — автоматично ще се създаде ново хранилище</div>
+        </div>
+        <div class="opt-card" id="connect-gist-btn">
+          <div class="opt-card-title">🔗 Свържи съществуващ Gist</div>
+          <div class="opt-card-desc">Имаш вече Gist с бюджетни данни</div>
+        </div>
+      </div>
+      <div id="connect-form" style="display:none">
+        <div class="form-group">
+          <input type="text" id="gist-id-input" class="form-input" placeholder="Gist ID или URL..." autocomplete="off">
+          <div id="gist-err" class="form-error"></div>
+        </div>
+        <button id="connect-btn" class="btn-primary">Свържи</button>
+      </div>
+      <div id="setup-ok" style="display:none;text-align:center;padding:20px 0">
+        <div style="font-size:22px;color:var(--green);font-weight:700;margin-bottom:16px">✓ Готово! Gist създаден.</div>
+        <button id="setup-done" class="btn-primary">Отвори приложението →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settings-modal" class="modal-overlay hidden">
+  <div class="modal-sheet" style="position:relative">
+    <button class="modal-close" id="settings-close-btn">×</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">⚙️ Настройки</div>
+    <div class="settings-item">
+      <div class="settings-lbl">GitHub Token</div>
+      <div class="settings-val" id="s-token">—</div>
+    </div>
+    <div class="settings-item">
+      <div class="settings-lbl">Gist ID</div>
+      <div class="settings-val" id="s-gist">—</div>
+      <a id="s-gist-link" class="settings-link" href="#" target="_blank" style="display:none">Виж в GitHub →</a>
+    </div>
+    <div class="divider"></div>
+    <button id="change-token-btn" class="btn-secondary">🔄 Смени токен</button>
+    <button id="export-btn" class="btn-secondary">📥 Експортирай всичко като JSON</button>
+    <button id="clear-btn" class="btn-danger">🗑️ Изчисти локалните данни</button>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <header class="app-header">
+    <div class="header-row">
+      <div class="app-title">💶 Моят Бюджет</div>
+      <div class="header-right">
+        <div id="sync-badge" class="sync-badge"></div>
+        <button class="btn-icon" id="settings-btn">⚙️</button>
+      </div>
+    </div>
+    <div class="month-nav hidden" id="month-nav">
+      <button class="mnav-btn" id="prev-btn">‹</button>
+      <div class="month-label" id="month-lbl">—</div>
+      <button class="mnav-btn" id="next-btn">›</button>
+    </div>
+  </header>
+
+  <div class="main-content">
+
+    <!-- TAB: Бюджет -->
+    <div class="tab-panel active" id="tab-budget">
+      <div class="hero">
+        <div class="hero-label">Остатък за месеца</div>
+        <div class="hero-amount pos" id="hero-amt">0 €</div>
+        <div class="hero-sub" id="hero-sub">— € приход − — € разходи</div>
+      </div>
+      <div class="progress-wrap">
+        <div class="prog-labels">
+          <span>Разходи</span>
+          <span id="prog-pct">0%</span>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill pos" id="prog-fill" style="width:0%"></div>
+        </div>
+      </div>
+      <div class="summary-grid">
+        <div class="sum-card"><div class="sum-label">Приход</div><div class="sum-val green" id="s-income">0 €</div></div>
+        <div class="sum-card"><div class="sum-label">Разходи</div><div class="sum-val red" id="s-expenses">0 €</div></div>
+        <div class="sum-card"><div class="sum-label">Баланс</div><div class="sum-val gold" id="s-balance">0 €</div></div>
+      </div>
+      <div class="status-bar" id="status-bar">—</div>
+      <div class="income-card">
+        <div class="income-row">
+          <span class="income-icon">🏦</span>
+          <span class="income-lbl">Пенсия</span>
+          <input type="number" class="income-input" id="income-input" min="0">
+          <span class="cur">€</span>
+        </div>
+      </div>
+      <div id="exp-sections"></div>
+      <div class="notes-card">
+        <textarea class="notes-ta" id="notes-ta" placeholder="Бележки за месеца..."></textarea>
+      </div>
+    </div>
+
+    <!-- TAB: История -->
+    <div class="tab-panel" id="tab-history">
+      <div id="history-list"></div>
+    </div>
+
+    <!-- TAB: Съвети -->
+    <div class="tab-panel" id="tab-tips">
+      <div class="tips-list">
+        <div class="tip-card green">
+          <div class="tip-title">🍽️ Готови храни → домашно готвене</div>
+          <div class="tip-body">Намали от 40 € на 15-20 €. Домашното готвене е 2-3 пъти по-евтино.</div>
+          <span class="tip-badge">Спестяване: ~20 € / месец = 240 € / год.</span>
+        </div>
+        <div class="tip-card gold">
+          <div class="tip-title">📺 ТВ и телефон пакет</div>
+          <div class="tip-body">По-малък пакет може да спести 10-15 € без промяна в начина на живот.</div>
+          <span class="tip-badge">Спестяване: ~10-15 € / месец</span>
+        </div>
+        <div class="tip-card gold">
+          <div class="tip-title">👗 Дрехи само в леките месеци</div>
+          <div class="tip-body">Планирай дрехи само в месеците БЕЗ очни манипулации.</div>
+          <span class="tip-badge">Контрол на тежките месеци</span>
+        </div>
+        <div class="tip-card blue">
+          <div class="tip-title">🏦 Резервен фонд</div>
+          <div class="tip-body">В месеците без очни — прехвърляй 50-100 € настрана.</div>
+          <span class="tip-badge">Цел: 500 € резерв</span>
+        </div>
+        <div class="tip-card red">
+          <div class="tip-title">⚠️ Тежките месеци</div>
+          <div class="tip-body">Очни + дрехи + 3× гробища = потенциален дефицит. Следи ги в История.</div>
+        </div>
+        <div class="tip-summary">
+          <div class="tip-sum-line"><strong>Сега:</strong> ~42 € остатък</div>
+          <div class="tip-sum-line"><strong>С оптимизация:</strong> ~75-80 € остатък</div>
+          <div class="tip-sum-line"><strong>За 6 месеца:</strong> до 400-500 € резерв</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-content -->
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-tab="budget"><span class="nav-icon">💰</span><span class="nav-label">Бюджет</span></button>
+    <button class="nav-btn" data-tab="history"><span class="nav-icon">📊</span><span class="nav-label">История</span></button>
+    <button class="nav-btn" data-tab="tips"><span class="nav-icon">💡</span><span class="nav-label">Съвети</span></button>
+  </nav>
+</div>
+
+<script>
+// ===================== CONSTANTS =====================
+const LS_TOKEN   = 'budget_token';
+const LS_GIST_ID = 'budget_gist_id';
+const LS_DATA    = 'budget_alldata';
+
+const MONTHS = ['Януари','Февруари','Март','Април','Май','Юни','Юли','Август','Септември','Октомври','Ноември','Декември'];
+const CAT_NAMES = { fixed:'Фиксирани', health:'Здраве', family:'Семейство', food:'Храна', other:'Разни' };
+const CATS = ['fixed','health','family','food','other'];
+
+const DEFAULTS = [
+  {id:'e1',  cat:'fixed',  icon:'⚡',  name:'Ток, вода, телефон, ТВ',       amount:150, note:'Всеки месец',                   enabled:true},
+  {id:'e2',  cat:'health', icon:'💊',  name:'Лекарства',                    amount:100, note:'Всеки месец',                   enabled:true},
+  {id:'e3',  cat:'health', icon:'👁️', name:'Очни манипулации',             amount:100, note:'3 месеца поред, после почивка', enabled:true},
+  {id:'e4',  cat:'family', icon:'👦',  name:'За внука',                     amount:100, note:'Всеки месец',                   enabled:true},
+  {id:'e5',  cat:'food',   icon:'🥩',  name:'Месо',                         amount:60,  note:'',                              enabled:true},
+  {id:'e6',  cat:'food',   icon:'🍎',  name:'Плодове и зеленчуци',          amount:50,  note:'',                              enabled:true},
+  {id:'e7',  cat:'food',   icon:'🥡',  name:'Готови храни',                 amount:40,  note:'Потенциал за намаляване',       enabled:true},
+  {id:'e8',  cat:'other',  icon:'⚰️',  name:'Гробища (цветя + транспорт)', amount:60,  note:'2-3 пъти месечно × 30 €',      enabled:true},
+  {id:'e9',  cat:'other',  icon:'👗',  name:'Дрехи',                        amount:0,   note:'~100 € на ~3 месеца',          enabled:true},
+  {id:'e10', cat:'other',  icon:'🧴',  name:'Домакински консумативи',       amount:25,  note:'Препарати, тоалетни',          enabled:true},
+  {id:'e11', cat:'other',  icon:'☕',  name:'Кафе и малки удоволствия',     amount:20,  note:'',                              enabled:true},
+  {id:'e12', cat:'other',  icon:'🔧',  name:'Ремонти / непредвидени',       amount:30,  note:'Резервен фонд',                enabled:true},
+];
+
+// ===================== STATE =====================
+const now = new Date();
+let S = {
+  token: null,
+  gistId: null,
+  allData: {},
+  year: now.getFullYear(),
+  month: now.getMonth(),
+  syncStatus: 'idle',
+  lastSync: null,
+  debounce: null,
+};
+
+// ===================== HELPERS =====================
+const mk  = (y, m) => `${y}_${m}`;
+const mLbl = (y, m) => `${MONTHS[m]} ${y}`;
+
+function monthData() {
+  const k = mk(S.year, S.month);
+  if (!S.allData[k]) {
+    S.allData[k] = { income: 800, expenses: JSON.parse(JSON.stringify(DEFAULTS)), notes: '' };
+  }
+  return S.allData[k];
+}
+
+function totals(md) {
+  const income = +md.income || 0;
+  const exp = md.expenses.filter(e => e.enabled).reduce((s, e) => s + (+e.amount || 0), 0);
+  return { income, exp, bal: income - exp };
+}
+
+function cls(bal) {
+  return bal > 80 ? 'pos' : bal >= 0 ? 'warn' : 'neg';
+}
+
+function statusText(bal) {
+  if (bal > 120) return '🌟 Отличен месец';
+  if (bal >= 80)  return '✅ Балансиран';
+  if (bal >= 0)   return '⚠️ Много стегнат';
+  return `🚨 Дефицит ${Math.abs(bal).toFixed(0)} €`;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===================== STORAGE =====================
+function saveLocal() {
+  try { localStorage.setItem(LS_DATA, JSON.stringify(S.allData)); } catch(e) {}
+}
+function loadLocal() {
+  try { return JSON.parse(localStorage.getItem(LS_DATA) || '{}'); } catch(e) { return {}; }
+}
+
+// ===================== GITHUB API =====================
+const GH = 'https://api.github.com';
+
+async function ghFetch(url, opts = {}) {
+  return fetch(url, {
+    ...opts,
+    headers: {
+      'Authorization': `token ${S.token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      ...(opts.headers || {})
+    }
+  });
+}
+
+async function loadGist() {
+  if (!S.token || !S.gistId) return;
+  setSyncStatus('syncing');
+  try {
+    const res = await ghFetch(`${GH}/gists/${S.gistId}`);
+    if (res.status === 401) { showToast('Токенът е изтекъл или невалиден', 'error'); showSetup(); setSyncStatus('error'); return; }
+    if (res.status === 404) { showToast('Gist не е намерен. Провери ID-то в настройките.', 'error'); setSyncStatus('error'); return; }
+    if (res.status === 403) { showToast('Лимит на заявките. Опитай след малко.', 'error'); setSyncStatus('error'); return; }
+    if (!res.ok) { setSyncStatus('error'); return; }
+    const d = await res.json();
+    const content = d.files['budget.json']?.content;
+    if (content) { try { S.allData = JSON.parse(content); saveLocal(); } catch(e) {} }
+    setSyncStatus('synced');
+  } catch(e) {
+    setSyncStatus(navigator.onLine ? 'error' : 'offline');
+  }
+}
+
+async function saveGist() {
+  if (!S.token || !S.gistId) return;
+  if (!navigator.onLine) { setSyncStatus('offline'); return; }
+  setSyncStatus('syncing');
+  try {
+    const res = await ghFetch(`${GH}/gists/${S.gistId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: { 'budget.json': { content: JSON.stringify(S.allData, null, 2) } } })
+    });
+    if (res.status === 401) { showToast('Токенът е изтекъл или невалиден', 'error'); setSyncStatus('error'); return; }
+    if (!res.ok) { setSyncStatus('error'); return; }
+    setSyncStatus('synced');
+    showToast('✓ Запазено', 'success');
+  } catch(e) {
+    setSyncStatus(navigator.onLine ? 'error' : 'offline');
+    if (navigator.onLine) showToast('⚠️ Грешка при синхронизация', 'error');
+  }
+}
+
+function schedSave() {
+  saveLocal();
+  if (S.debounce) clearTimeout(S.debounce);
+  S.debounce = setTimeout(saveGist, 1500);
+}
+
+// ===================== SYNC STATUS =====================
+function setSyncStatus(status) {
+  S.syncStatus = status;
+  if (status === 'synced') S.lastSync = new Date();
+  renderSyncBadge();
+}
+
+function renderSyncBadge() {
+  const el = document.getElementById('sync-badge');
+  if (!S.token) { el.innerHTML = ''; el.className = 'sync-badge'; return; }
+  if (!navigator.onLine || S.syncStatus === 'offline') {
+    el.className = 'sync-badge offline'; el.innerHTML = '📴 Офлайн'; return;
+  }
+  if (S.syncStatus === 'syncing') { el.className = 'sync-badge syncing'; el.innerHTML = '🔄 Синхр...'; return; }
+  if (S.syncStatus === 'synced' && S.lastSync) {
+    const h = S.lastSync.getHours().toString().padStart(2,'0');
+    const m = S.lastSync.getMinutes().toString().padStart(2,'0');
+    el.className = 'sync-badge synced'; el.innerHTML = `☁️ ${h}:${m}`; return;
+  }
+  if (S.syncStatus === 'error') {
+    el.className = 'sync-badge error';
+    el.innerHTML = '⚠️ Грешка <button class="retry-btn" onclick="saveGist()">Retry</button>'; return;
+  }
+  el.className = 'sync-badge'; el.innerHTML = '';
+}
+
+// ===================== RENDER BUDGET =====================
+function renderBudget() {
+  const md = monthData();
+  const { income, exp, bal } = totals(md);
+  const c = cls(bal);
+
+  document.getElementById('month-lbl').textContent = mLbl(S.year, S.month);
+
+  const ha = document.getElementById('hero-amt');
+  ha.className = `hero-amount ${c}`;
+  ha.textContent = `${bal.toFixed(0)} €`;
+  document.getElementById('hero-sub').textContent = `${income} € приход − ${exp.toFixed(0)} € разходи`;
+
+  const pct = income > 0 ? Math.min(100, Math.round(exp / income * 100)) : 0;
+  document.getElementById('prog-pct').textContent = `${pct}%`;
+  const pf = document.getElementById('prog-fill');
+  pf.style.width = `${pct}%`;
+  pf.className = `prog-fill ${c}`;
+
+  document.getElementById('s-income').textContent   = `${income} €`;
+  document.getElementById('s-expenses').textContent = `${exp.toFixed(0)} €`;
+  document.getElementById('s-balance').textContent  = `${bal.toFixed(0)} €`;
+  document.getElementById('status-bar').textContent = statusText(bal);
+
+  document.getElementById('income-input').value = md.income;
+  document.getElementById('notes-ta').value = md.notes || '';
+
+  renderExpSections(md);
+}
+
+function renderExpSections(md) {
+  const container = document.getElementById('exp-sections');
+  container.innerHTML = '';
+  for (const cat of CATS) {
+    const exps = md.expenses.filter(e => e.cat === cat);
+    if (!exps.length) continue;
+    const catTotal = exps.filter(e => e.enabled).reduce((s,e) => s + (+e.amount||0), 0);
+
+    const sec = document.createElement('div');
+    sec.className = 'exp-section';
+    sec.innerHTML = `
+      <div class="exp-section-hdr">
+        <span class="exp-cat-name" data-cat="${cat}">${CAT_NAMES[cat]}</span>
+        <span class="exp-cat-total" data-cattotal="${cat}">${catTotal.toFixed(0)} €</span>
+      </div>`;
+
+    for (const exp of exps) {
+      sec.appendChild(makeExpRow(exp));
+    }
+
+    if (cat === 'other') {
+      // Add form (hidden by default)
+      const form = document.createElement('div');
+      form.className = 'add-exp-form hidden';
+      form.id = 'add-form';
+      form.innerHTML = `
+        <input type="text" class="add-name-input" id="new-name" placeholder="Название...">
+        <input type="number" class="add-amt-input" id="new-amt" placeholder="0" min="0">
+        <button class="add-confirm" id="add-ok" title="Добави">✓</button>
+        <button class="add-cancel" id="add-cancel" title="Откажи">✗</button>`;
+      sec.appendChild(form);
+
+      const addBtn = document.createElement('button');
+      addBtn.className = 'add-exp-btn';
+      addBtn.id = 'show-add-btn';
+      addBtn.textContent = '＋ Добави разход';
+      addBtn.addEventListener('click', showAddForm);
+      sec.appendChild(addBtn);
+
+      form.querySelector('#add-ok').addEventListener('click', confirmAdd);
+      form.querySelector('#add-cancel').addEventListener('click', hideAddForm);
+      form.querySelector('#new-amt').addEventListener('keydown', e => { if (e.key === 'Enter') confirmAdd(); });
+    }
+
+    container.appendChild(sec);
+  }
+}
+
+function makeExpRow(exp) {
+  const row = document.createElement('div');
+  row.className = `exp-row${exp.enabled ? '' : ' disabled'}`;
+  row.dataset.id = exp.id;
+  row.innerHTML = `
+    <span class="exp-emoji">${exp.icon}</span>
+    <div class="exp-info">
+      <div class="exp-name">${esc(exp.name)}</div>
+      ${exp.note ? `<div class="exp-note">${esc(exp.note)}</div>` : ''}
+    </div>
+    <div class="exp-right">
+      <div class="exp-amt-wrap">
+        <input type="number" class="exp-amount" value="${exp.amount}" min="0" data-id="${exp.id}">
+        <span class="cur">€</span>
+      </div>
+      <input type="checkbox" class="exp-toggle" ${exp.enabled ? 'checked' : ''} data-id="${exp.id}">
+    </div>`;
+
+  row.querySelector('.exp-amount').addEventListener('input', e => {
+    expAmtChange(exp.id, parseFloat(e.target.value) || 0);
+  });
+  row.querySelector('.exp-toggle').addEventListener('change', e => {
+    expToggle(exp.id, e.target.checked);
+  });
+  return row;
+}
+
+// ===================== ADD EXPENSE =====================
+function showAddForm() {
+  const form = document.getElementById('add-form');
+  const btn  = document.getElementById('show-add-btn');
+  if (!form) return;
+  form.classList.remove('hidden');
+  btn.style.display = 'none';
+  document.getElementById('new-name').focus();
+}
+
+function hideAddForm() {
+  const form = document.getElementById('add-form');
+  const btn  = document.getElementById('show-add-btn');
+  if (!form) return;
+  form.classList.add('hidden');
+  btn.style.display = '';
+  document.getElementById('new-name').value = '';
+  document.getElementById('new-amt').value = '';
+}
+
+function confirmAdd() {
+  const name = document.getElementById('new-name').value.trim();
+  if (!name) { document.getElementById('new-name').focus(); return; }
+  const amount = parseFloat(document.getElementById('new-amt').value) || 0;
+  const md = monthData();
+  md.expenses.push({ id: 'custom_' + Date.now(), cat: 'other', icon: '💸', name, note: '', amount, enabled: true });
+  renderBudget();
+  updateTotalsOnly();
+  schedSave();
+}
+
+// ===================== EVENT HANDLERS =====================
+function incomeChange(v) {
+  monthData().income = parseFloat(v) || 0;
+  updateTotalsOnly();
+  schedSave();
+}
+
+function expAmtChange(id, v) {
+  const exp = monthData().expenses.find(e => e.id === id);
+  if (exp) { exp.amount = v; updateTotalsOnly(); schedSave(); }
+}
+
+function expToggle(id, checked) {
+  const exp = monthData().expenses.find(e => e.id === id);
+  if (!exp) return;
+  exp.enabled = checked;
+  const row = document.querySelector(`.exp-row[data-id="${id}"]`);
+  if (row) row.classList.toggle('disabled', !checked);
+  updateTotalsOnly();
+  schedSave();
+}
+
+function notesChange(v) {
+  monthData().notes = v;
+  schedSave();
+}
+
+function updateTotalsOnly() {
+  const md = monthData();
+  const { income, exp, bal } = totals(md);
+  const c = cls(bal);
+
+  const ha = document.getElementById('hero-amt');
+  ha.className = `hero-amount ${c}`;
+  ha.textContent = `${bal.toFixed(0)} €`;
+  document.getElementById('hero-sub').textContent = `${income} € приход − ${exp.toFixed(0)} € разходи`;
+
+  const pct = income > 0 ? Math.min(100, Math.round(exp / income * 100)) : 0;
+  document.getElementById('prog-pct').textContent = `${pct}%`;
+  const pf = document.getElementById('prog-fill');
+  pf.style.width = `${pct}%`;
+  pf.className = `prog-fill ${c}`;
+
+  document.getElementById('s-income').textContent   = `${income} €`;
+  document.getElementById('s-expenses').textContent = `${exp.toFixed(0)} €`;
+  document.getElementById('s-balance').textContent  = `${bal.toFixed(0)} €`;
+  document.getElementById('status-bar').textContent = statusText(bal);
+
+  // Update per-category totals
+  for (const cat of CATS) {
+    const catExp = md.expenses.filter(e => e.cat === cat && e.enabled).reduce((s,e) => s + (+e.amount||0), 0);
+    const el = document.querySelector(`[data-cattotal="${cat}"]`);
+    if (el) el.textContent = `${catExp.toFixed(0)} €`;
+  }
+}
+
+// ===================== NAVIGATION =====================
+function gotoMonth(dir) {
+  S.month += dir;
+  if (S.month > 11) { S.month = 0; S.year++; }
+  if (S.month < 0)  { S.month = 11; S.year--; }
+  renderBudget();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  document.querySelector(`.nav-btn[data-tab="${tab}"]`).classList.add('active');
+  document.getElementById('month-nav').classList.toggle('hidden', tab !== 'budget');
+  if (tab === 'history') renderHistory();
+}
+
+// ===================== HISTORY =====================
+function renderHistory() {
+  const container = document.getElementById('history-list');
+  const keys = Object.keys(S.allData)
+    .filter(k => /^\d+_\d+$/.test(k))
+    .sort((a, b) => {
+      const [ay, am] = a.split('_').map(Number);
+      const [by, bm] = b.split('_').map(Number);
+      return (by * 12 + bm) - (ay * 12 + am);
+    });
+
+  if (!keys.length) {
+    container.innerHTML = '<div class="empty-state">📭 Все още няма запазени месеци.</div>';
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'history-list';
+
+  for (const k of keys) {
+    const [y, m] = k.split('_').map(Number);
+    const d = S.allData[k];
+    const { income, exp, bal } = totals(d);
+    const c = cls(bal);
+    const item = document.createElement('div');
+    item.className = 'hist-item';
+    item.innerHTML = `
+      <div class="hist-month">
+        <div class="hist-name">${mLbl(y, m)}</div>
+        <div class="hist-detail">${income} € приход · ${exp.toFixed(0)} € разходи</div>
+      </div>
+      <div class="hist-bal ${c}">${bal >= 0 ? '+' : ''}${bal.toFixed(0)} €</div>`;
+    item.addEventListener('click', () => {
+      S.year = y; S.month = m;
+      renderBudget();
+      switchTab('budget');
+    });
+    list.appendChild(item);
+  }
+
+  container.innerHTML = '';
+  container.appendChild(list);
+}
+
+// ===================== TOAST =====================
+let toastTimer = null;
+function showToast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+// ===================== SETUP MODAL =====================
+function showSetup() {
+  document.getElementById('setup-modal').classList.remove('hidden');
+  document.getElementById('s1').style.display = '';
+  document.getElementById('s2').style.display = 'none';
+  document.getElementById('token-err').classList.remove('show');
+  document.getElementById('token-input').value = '';
+}
+
+function hideSetup() {
+  document.getElementById('setup-modal').classList.add('hidden');
+}
+
+async function onTokenContinue() {
+  const token = document.getElementById('token-input').value.trim();
+  const errEl = document.getElementById('token-err');
+  const btn   = document.getElementById('token-btn');
+  if (!token) { errEl.textContent = 'Моля, въведи токен.'; errEl.classList.add('show'); return; }
+  btn.disabled = true; btn.textContent = 'Проверяване...'; errEl.classList.remove('show');
+  try {
+    const res = await fetch(`${GH}/user`, {
+      headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (!res.ok) {
+      errEl.textContent = 'Невалиден токен, опитай отново.'; errEl.classList.add('show');
+    } else {
+      S.token = token;
+      document.getElementById('s1').style.display = 'none';
+      document.getElementById('s2').style.display = '';
+    }
+  } catch(e) {
+    errEl.textContent = 'Грешка при свързване. Провери интернета.'; errEl.classList.add('show');
+  }
+  btn.disabled = false; btn.textContent = 'Продължи →';
+}
+
+async function onCreateGist() {
+  document.getElementById('gist-options').style.display = 'none';
+  try {
+    const res = await ghFetch(`${GH}/gists`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: 'Моят Бюджет — данни', public: false, files: { 'budget.json': { content: '{}' } } })
+    });
+    if (!res.ok) { showToast('Грешка при създаване на Gist', 'error'); document.getElementById('gist-options').style.display = ''; return; }
+    const d = await res.json();
+    S.gistId = d.id;
+    localStorage.setItem(LS_TOKEN, S.token);
+    localStorage.setItem(LS_GIST_ID, S.gistId);
+    document.getElementById('setup-ok').style.display = '';
+  } catch(e) {
+    showToast('Грешка при свързване', 'error');
+    document.getElementById('gist-options').style.display = '';
+  }
+}
+
+async function onConnectGist() {
+  let gistId = document.getElementById('gist-id-input').value.trim();
+  const errEl = document.getElementById('gist-err');
+  const btn   = document.getElementById('connect-btn');
+  // Parse URL
+  const m = gistId.match(/gist\.github\.com\/(?:[^/]+\/)?([a-f0-9]{20,})/i);
+  if (m) gistId = m[1];
+  if (!gistId) { errEl.textContent = 'Моля, въведи Gist ID.'; errEl.classList.add('show'); return; }
+  btn.disabled = true; btn.textContent = 'Проверяване...'; errEl.classList.remove('show');
+  try {
+    const res = await ghFetch(`${GH}/gists/${gistId}`);
+    if (!res.ok) { errEl.textContent = 'Gist не е намерен. Провери ID-то.'; errEl.classList.add('show'); btn.disabled = false; btn.textContent = 'Свържи'; return; }
+    const data = await res.json();
+    if (!data.files['budget.json']) {
+      if (confirm('Файлът budget.json не е намерен. Да го създам в този Gist?')) {
+        await ghFetch(`${GH}/gists/${gistId}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: { 'budget.json': { content: '{}' } } })
+        });
+      } else { btn.disabled = false; btn.textContent = 'Свържи'; return; }
+    } else {
+      try { S.allData = JSON.parse(data.files['budget.json'].content) || {}; saveLocal(); } catch(e) {}
+    }
+    S.gistId = gistId;
+    localStorage.setItem(LS_TOKEN, S.token);
+    localStorage.setItem(LS_GIST_ID, S.gistId);
+    document.getElementById('connect-form').style.display = 'none';
+    document.getElementById('setup-ok').style.display = '';
+  } catch(e) {
+    errEl.textContent = 'Грешка при свързване.'; errEl.classList.add('show');
+  }
+  btn.disabled = false; btn.textContent = 'Свържи';
+}
+
+// ===================== SETTINGS =====================
+function showSettings() {
+  document.getElementById('s-token').textContent = S.token ? '••••••••••••' + S.token.slice(-4) : 'Не е зададен';
+  const gl = document.getElementById('s-gist-link');
+  if (S.gistId) {
+    document.getElementById('s-gist').textContent = S.gistId;
+    gl.href = `https://gist.github.com/${S.gistId}`;
+    gl.style.display = '';
+  } else {
+    document.getElementById('s-gist').textContent = 'Не е зададен';
+    gl.style.display = 'none';
+  }
+  document.getElementById('settings-modal').classList.remove('hidden');
+}
+
+function hideSettings() { document.getElementById('settings-modal').classList.add('hidden'); }
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(S.allData, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'budget-export.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function clearData() {
+  if (!confirm('Сигурен ли си? Локалните данни ще бъдат изтрити (Gist данните остават).')) return;
+  localStorage.removeItem(LS_DATA);
+  S.allData = {};
+  renderBudget();
+  hideSettings();
+  showToast('Локалните данни са изтрити.', 'info');
+}
+
+// ===================== INIT =====================
+async function init() {
+  S.token  = localStorage.getItem(LS_TOKEN);
+  S.gistId = localStorage.getItem(LS_GIST_ID);
+  S.allData = loadLocal();
+
+  // Wire events
+  document.getElementById('income-input').addEventListener('input', e => incomeChange(e.target.value));
+  document.getElementById('notes-ta').addEventListener('input', e => notesChange(e.target.value));
+  document.getElementById('prev-btn').addEventListener('click', () => gotoMonth(-1));
+  document.getElementById('next-btn').addEventListener('click', () => gotoMonth(1));
+  document.getElementById('settings-btn').addEventListener('click', showSettings);
+  document.getElementById('settings-close-btn').addEventListener('click', hideSettings);
+  document.getElementById('change-token-btn').addEventListener('click', () => { hideSettings(); showSetup(); });
+  document.getElementById('export-btn').addEventListener('click', exportData);
+  document.getElementById('clear-btn').addEventListener('click', clearData);
+
+  document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  document.getElementById('token-btn').addEventListener('click', onTokenContinue);
+  document.getElementById('token-input').addEventListener('keydown', e => { if (e.key === 'Enter') onTokenContinue(); });
+  document.getElementById('create-gist-btn').addEventListener('click', onCreateGist);
+  document.getElementById('connect-gist-btn').addEventListener('click', () => {
+    document.getElementById('connect-gist-btn').style.display = 'none';
+    document.getElementById('connect-form').style.display = '';
+  });
+  document.getElementById('connect-btn').addEventListener('click', onConnectGist);
+  document.getElementById('setup-done').addEventListener('click', async () => {
+    hideSetup();
+    await loadGist();
+    renderBudget();
+  });
+
+  // Settings modal: close on overlay click
+  document.getElementById('settings-modal').addEventListener('click', e => { if (e.target === e.currentTarget) hideSettings(); });
+  document.getElementById('setup-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget && (S.token && S.gistId)) hideSetup();
+  });
+
+  // Online / offline
+  window.addEventListener('online',  () => { renderSyncBadge(); if (S.debounce) { clearTimeout(S.debounce); S.debounce = null; } saveGist(); });
+  window.addEventListener('offline', () => setSyncStatus('offline'));
+
+  // Initial render
+  renderBudget();
+  document.getElementById('loading').classList.add('hidden');
+
+  if (!S.token || !S.gistId) {
+    showSetup();
+  } else {
+    await loadGist();
+    renderBudget();
+  }
+}
+
+// Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+
+init();
+</script>
+</body>
+</html>
