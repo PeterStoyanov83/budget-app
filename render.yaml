@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: budget-app
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATA_DIR
+        value: /data
+    disk:
+      name: budget-data
+      mountPath: /data
+      sizeGB: 1

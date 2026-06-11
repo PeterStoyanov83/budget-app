@@ -1,0 +1,22 @@
+{
+  "name": "budget-app",
+  "version": "2.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "icons": "node generate-icons.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^9.6.0",
+    "connect-sqlite3": "^0.9.15",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0"
+  },
+  "devDependencies": {
+    "canvas": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
