@@ -1,6 +1,6 @@
 # HANDOFF — Моят Бюджет
 
-_Last updated: 2026-06-11_
+_Last updated: 2026-06-11 (session 2)_
 
 ## What this is
 Bulgarian-language PWA personal budget tracker built for a pensioner.
@@ -8,7 +8,7 @@ Multi-account (each user has isolated data). Dark theme. Mobile-first (max 480px
 
 ## Repo
 https://github.com/PeterStoyanov83/budget-app  
-Branch: `main` — 4 commits total
+Branch: `main` — 6 commits total
 
 ## Current stack
 - **Frontend**: Vanilla HTML/CSS/JS — `public/index.html` (single file, ~760 lines, no framework)
@@ -78,12 +78,17 @@ data/               gitignored — SQLite files live here at runtime
 Balance colours: green (>80 €) · amber (0–80 €) · red (negative)
 Status bar text: 🌟 Отличен (>120) · ✅ Балансиран (80-120) · ⚠️ Много стегнат (0-80) · 🚨 Дефицит
 
-## Deploy to Render (not yet done — pending)
+## Deploy to Render (in progress — first deploy attempted)
 1. Go to **render.com** → New Web Service
 2. Connect GitHub repo `PeterStoyanov83/budget-app`
 3. Render reads `render.yaml` → auto-configures Node, 1GB disk, generates `SESSION_SECRET`
 4. Click **Deploy** → URL like `https://budget-app.onrender.com`
 5. Pensioner visits URL, clicks Регистрация, enters name + password, done
+
+### First deploy failure + fix (2026-06-11)
+- Render picked Node 26.3.0 (latest); `better-sqlite3` v9.6.0 fails to compile against Node 26 V8 API
+- Fix: pinned `"engines": { "node": "20.x" }` in `package.json` — commit `675b063`
+- **Next step**: trigger redeploy on Render dashboard — should now build successfully
 
 ## Session history — what was tried and why
 | Version | Approach | Outcome |
@@ -98,4 +103,5 @@ Status bar text: 🌟 Отличен (>120) · ✅ Балансиран (80-120)
 - No admin panel to list/manage users
 - No export button (was in v1 settings; removed in v2 — could re-add under Изход menu)
 - `package-lock.json` is gitignored — intentional, Render runs `npm install` fresh
+- Node pinned to `20.x` — do NOT widen back to `>=18`, it will pick Node 26 and break `better-sqlite3`
 - `SESSION_SECRET` falls back to a hardcoded Bulgarian string if env var missing — fine for dev only
