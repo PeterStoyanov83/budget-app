@@ -266,6 +266,14 @@
           <input type="number" class="income-input" id="income-input" min="0">
           <span class="cur">€</span>
         </div>
+        <div id="extra-incomes"></div>
+        <div class="add-exp-form hidden" id="add-income-form">
+          <input type="text" class="add-name-input" id="new-income-name" placeholder="Название...">
+          <input type="number" class="add-amt-input" id="new-income-amt" placeholder="0" min="0">
+          <button class="add-confirm" id="add-income-ok">✓</button>
+          <button class="add-cancel" id="add-income-cancel">✗</button>
+        </div>
+        <button class="add-exp-btn" id="show-add-income-btn">＋ Добави приход</button>
       </div>
       <div id="exp-sections"></div>
       <div class="notes-card">
@@ -330,8 +338,8 @@ let S = { allData:{}, year:n.getFullYear(), month:n.getMonth(), debounce:null };
 
 const mk=(y,m)=>`${y}_${m}`;
 const mLbl=(y,m)=>`${MONTHS[m]} ${y}`;
-function monthData(){const k=mk(S.year,S.month);if(!S.allData[k])S.allData[k]={income:0,expenses:[],notes:''};return S.allData[k];}
-function totals(md){const i=+md.income||0;const e=md.expenses.filter(x=>x.enabled).reduce((s,x)=>s+(+x.amount||0),0);return{income:i,exp:e,bal:i-e};}
+function monthData(){const k=mk(S.year,S.month);if(!S.allData[k])S.allData[k]={income:0,expenses:[],notes:'',extraIncomes:[]};const md=S.allData[k];if(!md.extraIncomes)md.extraIncomes=[];return md;}
+function totals(md){const i=(+md.income||0)+(md.extraIncomes||[]).reduce((s,x)=>s+(+x.amount||0),0);const e=md.expenses.filter(x=>x.enabled).reduce((s,x)=>s+(+x.amount||0),0);return{income:i,exp:e,bal:i-e};}
 function cls(b){return b>80?'pos':b>=0?'warn':'neg';}
 function statusText(b){if(b>120)return'🌟 Отличен месец';if(b>=80)return'✅ Балансиран';if(b>=0)return'⚠️ Много стегнат';return`🚨 Дефицит ${Math.abs(b).toFixed(0)} €`;}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -408,13 +416,14 @@ function renderBudget(){
   document.getElementById('status-bar').textContent=statusText(bal);
   document.getElementById('income-input').value=md.income;
   document.getElementById('notes-ta').value=md.notes||'';
+  renderExtraIncomes(md);
   renderExpSections(md);
 }
 
 function renderExpSections(md){
   const c=document.getElementById('exp-sections');c.innerHTML='';
   for(const cat of CATS){
-    const exps=md.expenses.filter(e=>e.cat===cat);if(!exps.length)continue;
+    const exps=md.expenses.filter(e=>e.cat===cat);if(cat!=='other'&&!exps.length)continue;
     const ct=exps.filter(e=>e.enabled).reduce((s,e)=>s+(+e.amount||0),0);
     const sec=document.createElement('div');sec.className='exp-section';
     sec.innerHTML=`<div class="exp-section-hdr"><span class="exp-cat-name" data-cat="${cat}">${CAT_NAMES[cat]}</span><span class="exp-cat-total" data-cattotal="${cat}">${ct.toFixed(0)} €</span></div>`;
@@ -449,6 +458,27 @@ function confirmAdd(){
   monthData().expenses.push({id:'custom_'+Date.now(),cat:'other',icon:'💸',name,note:'',amount,enabled:true});
   renderBudget();updateTotalsOnly();schedSave();
 }
+
+function renderExtraIncomes(md){
+  const c=document.getElementById('extra-incomes');c.innerHTML='';
+  for(const inc of (md.extraIncomes||[])){
+    const row=document.createElement('div');row.className='income-row';row.dataset.id=inc.id;
+    row.innerHTML=`<span class="income-icon">💰</span><span class="income-lbl">${esc(inc.name)}</span><input type="number" class="income-input" value="${inc.amount}" min="0" data-id="${inc.id}"><span class="cur">€</span><button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:17px;padding:0 4px 0 6px;line-height:1;" data-id="${inc.id}">✕</button>`;
+    row.querySelector('.income-input').addEventListener('input',e=>{extraIncomeAmt(inc.id,parseFloat(e.target.value)||0);});
+    row.querySelector('button').addEventListener('click',()=>{deleteExtraIncome(inc.id);});
+    c.appendChild(row);
+  }
+}
+function showAddIncomeForm(){document.getElementById('add-income-form').classList.remove('hidden');document.getElementById('show-add-income-btn').style.display='none';document.getElementById('new-income-name').focus();}
+function hideAddIncomeForm(){document.getElementById('add-income-form').classList.add('hidden');document.getElementById('show-add-income-btn').style.display='';document.getElementById('new-income-name').value='';document.getElementById('new-income-amt').value='';}
+function confirmAddIncome(){
+  const name=document.getElementById('new-income-name').value.trim();if(!name){document.getElementById('new-income-name').focus();return;}
+  const amount=parseFloat(document.getElementById('new-income-amt').value)||0;
+  monthData().extraIncomes.push({id:'inc_'+Date.now(),name,amount});
+  hideAddIncomeForm();renderBudget();schedSave();
+}
+function extraIncomeAmt(id,v){const inc=(monthData().extraIncomes||[]).find(i=>i.id===id);if(inc){inc.amount=v;updateTotalsOnly();schedSave();}}
+function deleteExtraIncome(id){const md=monthData();md.extraIncomes=(md.extraIncomes||[]).filter(i=>i.id!==id);renderBudget();schedSave();}
 
 function incomeChange(v){monthData().income=parseFloat(v)||0;updateTotalsOnly();schedSave();}
 function expAmtChange(id,v){const e=monthData().expenses.find(e=>e.id===id);if(e){e.amount=v;updateTotalsOnly();schedSave();}}
@@ -515,6 +545,10 @@ async function init(){
   document.getElementById('reg-pass2').addEventListener('keydown',e=>{if(e.key==='Enter')doRegister();});
   document.getElementById('logout-btn').addEventListener('click',doLogout);
   document.getElementById('income-input').addEventListener('input',e=>incomeChange(e.target.value));
+  document.getElementById('show-add-income-btn').addEventListener('click',showAddIncomeForm);
+  document.getElementById('add-income-ok').addEventListener('click',confirmAddIncome);
+  document.getElementById('add-income-cancel').addEventListener('click',hideAddIncomeForm);
+  document.getElementById('new-income-amt').addEventListener('keydown',e=>{if(e.key==='Enter')confirmAddIncome();});
   document.getElementById('notes-ta').addEventListener('input',e=>notesChange(e.target.value));
   document.getElementById('prev-btn').addEventListener('click',()=>gotoMonth(-1));
   document.getElementById('next-btn').addEventListener('click',()=>gotoMonth(1));
