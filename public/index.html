@@ -286,37 +286,7 @@
     </div>
 
     <div class="tab-panel" id="tab-tips">
-      <div class="tips-list">
-        <div class="tip-card green">
-          <div class="tip-title">🍽️ Готови храни → домашно готвене</div>
-          <div class="tip-body">Намали от 40 € на 15-20 €. Домашното готвене е 2-3 пъти по-евтино.</div>
-          <span class="tip-badge">Спестяване: ~20 € / месец = 240 € / год.</span>
-        </div>
-        <div class="tip-card gold">
-          <div class="tip-title">📺 ТВ и телефон пакет</div>
-          <div class="tip-body">По-малък пакет може да спести 10-15 € без промяна в начина на живот.</div>
-          <span class="tip-badge">Спестяване: ~10-15 € / месец</span>
-        </div>
-        <div class="tip-card gold">
-          <div class="tip-title">👗 Дрехи само в леките месеци</div>
-          <div class="tip-body">Планирай дрехи само в месеците БЕЗ очни манипулации.</div>
-          <span class="tip-badge">Контрол на тежките месеци</span>
-        </div>
-        <div class="tip-card blue">
-          <div class="tip-title">🏦 Резервен фонд</div>
-          <div class="tip-body">В месеците без очни — прехвърляй 50-100 € настрана.</div>
-          <span class="tip-badge">Цел: 500 € резерв</span>
-        </div>
-        <div class="tip-card red">
-          <div class="tip-title">⚠️ Тежките месеци</div>
-          <div class="tip-body">Очни + дрехи + 3× гробища = потенциален дефицит. Следи ги в История.</div>
-        </div>
-        <div class="tip-summary">
-          <div class="tip-sum-line"><strong>Сега:</strong> ~42 € остатък</div>
-          <div class="tip-sum-line"><strong>С оптимизация:</strong> ~75-80 € остатък</div>
-          <div class="tip-sum-line"><strong>За 6 месеца:</strong> до 400-500 € резерв</div>
-        </div>
-      </div>
+      <div class="tips-list" id="tips-content"></div>
     </div>
   </div>
 
@@ -429,10 +399,12 @@ function renderExpSections(md){
     sec.innerHTML=`<div class="exp-section-hdr"><span class="exp-cat-name" data-cat="${cat}">${CAT_NAMES[cat]}</span><span class="exp-cat-total" data-cattotal="${cat}">${ct.toFixed(0)} €</span></div>`;
     for(const exp of exps)sec.appendChild(makeExpRow(exp));
     if(cat==='other'){
-      const form=document.createElement('div');form.className='add-exp-form hidden';form.id='add-form';
+      const noExp=md.expenses.length===0;
+      const form=document.createElement('div');form.className=`add-exp-form${noExp?'':' hidden'}`;form.id='add-form';
       form.innerHTML=`<input type="text" class="add-name-input" id="new-name" placeholder="Название..."><input type="number" class="add-amt-input" id="new-amt" placeholder="0" min="0"><button class="add-confirm" id="add-ok">✓</button><button class="add-cancel" id="add-cancel">✗</button>`;
       sec.appendChild(form);
       const ab=document.createElement('button');ab.className='add-exp-btn';ab.id='show-add-btn';ab.textContent='＋ Добави разход';
+      if(noExp)ab.style.display='none';
       ab.addEventListener('click',showAddForm);sec.appendChild(ab);
       form.querySelector('#add-ok').addEventListener('click',confirmAdd);
       form.querySelector('#add-cancel').addEventListener('click',hideAddForm);
@@ -513,6 +485,60 @@ function switchTab(tab){
   document.querySelector(`.nav-btn[data-tab="${tab}"]`).classList.add('active');
   document.getElementById('month-nav').classList.toggle('hidden',tab!=='budget');
   if(tab==='history')renderHistory();
+  if(tab==='tips')renderTips();
+}
+
+function renderTips(){
+  const md=monthData();const{income,exp,bal}=totals(md);
+  const c=document.getElementById('tips-content');
+  if(income===0&&exp===0){c.innerHTML='<div class="empty-state">📊 Въведи приход и разходи, за да видиш персонализирани съвети.</div>';return;}
+  const tips=[];
+
+  // --- summary card ---
+  const balColor=bal>80?'var(--green)':bal>=0?'var(--warn)':'var(--red)';
+  tips.push(`<div class="tip-summary">
+    <div class="tip-sum-line"><strong>Приход:</strong> ${income.toFixed(0)} €</div>
+    <div class="tip-sum-line"><strong>Разходи:</strong> ${exp.toFixed(0)} €</div>
+    <div class="tip-sum-line"><strong>Остатък:</strong> <span style="color:${balColor};font-weight:700">${bal.toFixed(0)} €</span></div>
+    ${income>0?`<div class="tip-sum-line"><strong>Разходи от приход:</strong> ${Math.round(exp/income*100)}%</div>`:''}
+  </div>`);
+
+  // --- deficit / tight / good ---
+  if(bal<0){
+    tips.push(`<div class="tip-card red"><div class="tip-title">🚨 Дефицит ${Math.abs(bal).toFixed(0)} €</div><div class="tip-body">Разходите надвишават прихода. Провери кои позиции може да намалиш или изключиш временно.</div></div>`);
+  } else if(bal<80){
+    tips.push(`<div class="tip-card gold"><div class="tip-title">⚠️ Стегнат месец</div><div class="tip-body">Остават ти ${bal.toFixed(0)} €. Избягвай непланирани разходи — нямаш буфер.</div></div>`);
+  } else {
+    const save=Math.min(bal,100).toFixed(0);
+    tips.push(`<div class="tip-card green"><div class="tip-title">✅ Добър баланс</div><div class="tip-body">Имаш ${bal.toFixed(0)} € остатък. Помисли да заделиш поне ${save} € настрана като резерв.</div><span class="tip-badge">Препоръчително: ${save} € в резерв</span></div>`);
+  }
+
+  // --- top spending categories ---
+  const catData=CATS.map(cat=>({cat,name:CAT_NAMES[cat],total:md.expenses.filter(e=>e.cat===cat&&e.enabled).reduce((s,e)=>s+(+e.amount||0),0)})).filter(d=>d.total>0).sort((a,b)=>b.total-a.total);
+  const catColor={fixed:'gold',health:'red',family:'blue',food:'green',other:'gold'};
+  if(catData.length>0){
+    const top=catData[0];const pct=income>0?Math.round(top.total/income*100):0;
+    tips.push(`<div class="tip-card ${catColor[top.cat]||'gold'}"><div class="tip-title">📊 Най-голям разход: ${top.name}</div><div class="tip-body">${top.total.toFixed(0)} €${income>0?` (${pct}% от прихода)`:''}.${pct>40?' Тази категория поглъща голяма част от бюджета ти.':''}</div><span class="tip-badge">${top.total.toFixed(0)} € / месец</span></div>`);
+  }
+  if(catData.length>1){
+    const rows=catData.map(d=>`<div class="tip-sum-line"><strong>${d.name}:</strong> ${d.total.toFixed(0)} €${income>0?` (${Math.round(d.total/income*100)}%)`:''}</div>`).join('');
+    tips.push(`<div class="tip-summary"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.6px">Разбивка по категории</div>${rows}</div>`);
+  }
+
+  // --- historical comparison (need ≥2 past months) ---
+  const curKey=mk(S.year,S.month);
+  const pastKeys=Object.keys(S.allData).filter(k=>/^\d+_\d+$/.test(k)&&k!==curKey);
+  if(pastKeys.length>=2){
+    const recent=pastKeys.slice(0,3);
+    const avgBal=recent.reduce((s,k)=>{const{bal:b}=totals(S.allData[k]);return s+b;},0)/recent.length;
+    const diff=bal-avgBal;
+    if(Math.abs(diff)>10){
+      const better=diff>0;
+      tips.push(`<div class="tip-card ${better?'green':'gold'}"><div class="tip-title">${better?'📈 По-добре от обичайното':'📉 По-зле от обичайното'}</div><div class="tip-body">Средният ти остатък за последните ${recent.length} месеца е ${avgBal.toFixed(0)} €. Този месец си ${better?'с '+diff.toFixed(0)+' € повече':'с '+Math.abs(diff).toFixed(0)+' € по-малко'}.</div></div>`);
+    }
+  }
+
+  c.innerHTML=tips.join('');
 }
 
 function renderHistory(){
