@@ -177,6 +177,69 @@
     input[type=number]::-webkit-outer-spin-button,
     input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     input[type=number] { -moz-appearance: textfield; }
+
+    /* ── RESPONSIVE ── */
+    @media (min-width: 768px) {
+      #app { max-width: 1280px; }
+      .tab-panel { padding: 20px 28px; }
+      .header-row { padding: 0 28px; }
+      .month-nav { padding: 0 28px; }
+
+      /* Bottom nav → tab bar below header */
+      .bottom-nav {
+        order: 1;
+        position: static;
+        transform: none;
+        width: 100%;
+        max-width: 100%;
+        height: 46px;
+        border-top: none;
+        border-bottom: 1px solid var(--border);
+        justify-content: flex-start;
+        padding: 0 24px;
+        gap: 0;
+      }
+      .main-content { order: 2; padding-bottom: 24px; overflow-y: visible; }
+      .bottom-nav .nav-btn {
+        flex: none;
+        flex-direction: row;
+        gap: 8px;
+        padding: 0 22px;
+        height: 100%;
+        min-height: unset;
+        border-radius: 0;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        font-size: 14px;
+      }
+      .bottom-nav .nav-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: none; }
+      .nav-icon { font-size: 17px; }
+      .nav-label { font-size: 13px; font-weight: 500; }
+
+      /* Budget tab: 2-column grid */
+      #tab-budget {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 0 20px;
+        max-width: 1100px;
+        margin: 0 auto;
+        align-items: start;
+      }
+      .budget-left { min-width: 0; display: flex; flex-direction: column; }
+      #exp-sections { min-width: 0; padding-top: 0; }
+
+      /* History & Tips: centered single column */
+      #tab-history .history-list,
+      #tab-tips .tips-list { max-width: 700px; margin: 0 auto; }
+    }
+
+    @media (min-width: 1200px) {
+      #tab-budget { grid-template-columns: 380px 1fr; gap: 0 28px; max-width: 1200px; }
+      .tab-panel { padding: 24px 48px; }
+      .header-row { padding: 0 48px; }
+      .month-nav { padding: 0 48px; }
+      .hero-amount { font-size: 52px; }
+    }
   </style>
 </head>
 <body>
@@ -244,41 +307,43 @@
 
   <div class="main-content">
     <div class="tab-panel active" id="tab-budget">
-      <div class="hero">
-        <div class="hero-label">Остатък за месеца</div>
-        <div class="hero-amount pos" id="hero-amt">0 €</div>
-        <div class="hero-sub" id="hero-sub">— € приход − — € разходи</div>
-      </div>
-      <div class="progress-wrap">
-        <div class="prog-labels"><span>Разходи</span><span id="prog-pct">0%</span></div>
-        <div class="prog-track"><div class="prog-fill pos" id="prog-fill" style="width:0%"></div></div>
-      </div>
-      <div class="summary-grid">
-        <div class="sum-card"><div class="sum-label">Приход</div><div class="sum-val green" id="s-income">0 €</div></div>
-        <div class="sum-card"><div class="sum-label">Разходи</div><div class="sum-val red" id="s-expenses">0 €</div></div>
-        <div class="sum-card"><div class="sum-label">Баланс</div><div class="sum-val gold" id="s-balance">0 €</div></div>
-      </div>
-      <div class="status-bar" id="status-bar">—</div>
-      <div class="income-card">
-        <div class="income-row">
-          <span class="income-icon">🏦</span>
-          <span class="income-lbl">Пенсия</span>
-          <input type="number" class="income-input" id="income-input" min="0">
-          <span class="cur">€</span>
+      <div class="budget-left">
+        <div class="hero">
+          <div class="hero-label">Остатък за месеца</div>
+          <div class="hero-amount pos" id="hero-amt">0 €</div>
+          <div class="hero-sub" id="hero-sub">— € приход − — € разходи</div>
         </div>
-        <div id="extra-incomes"></div>
-        <div class="add-exp-form hidden" id="add-income-form">
-          <input type="text" class="add-name-input" id="new-income-name" placeholder="Название...">
-          <input type="number" class="add-amt-input" id="new-income-amt" placeholder="0" min="0">
-          <button class="add-confirm" id="add-income-ok">✓</button>
-          <button class="add-cancel" id="add-income-cancel">✗</button>
+        <div class="progress-wrap">
+          <div class="prog-labels"><span>Разходи</span><span id="prog-pct">0%</span></div>
+          <div class="prog-track"><div class="prog-fill pos" id="prog-fill" style="width:0%"></div></div>
         </div>
-        <button class="add-exp-btn" id="show-add-income-btn">＋ Добави приход</button>
+        <div class="summary-grid">
+          <div class="sum-card"><div class="sum-label">Приход</div><div class="sum-val green" id="s-income">0 €</div></div>
+          <div class="sum-card"><div class="sum-label">Разходи</div><div class="sum-val red" id="s-expenses">0 €</div></div>
+          <div class="sum-card"><div class="sum-label">Баланс</div><div class="sum-val gold" id="s-balance">0 €</div></div>
+        </div>
+        <div class="status-bar" id="status-bar">—</div>
+        <div class="income-card">
+          <div class="income-row">
+            <span class="income-icon">🏦</span>
+            <span class="income-lbl">Пенсия</span>
+            <input type="number" class="income-input" id="income-input" min="0">
+            <span class="cur">€</span>
+          </div>
+          <div id="extra-incomes"></div>
+          <div class="add-exp-form hidden" id="add-income-form">
+            <input type="text" class="add-name-input" id="new-income-name" placeholder="Название...">
+            <input type="number" class="add-amt-input" id="new-income-amt" placeholder="0" min="0">
+            <button class="add-confirm" id="add-income-ok">✓</button>
+            <button class="add-cancel" id="add-income-cancel">✗</button>
+          </div>
+          <button class="add-exp-btn" id="show-add-income-btn">＋ Добави приход</button>
+        </div>
+        <div class="notes-card">
+          <textarea class="notes-ta" id="notes-ta" placeholder="Бележки за месеца..."></textarea>
+        </div>
       </div>
       <div id="exp-sections"></div>
-      <div class="notes-card">
-        <textarea class="notes-ta" id="notes-ta" placeholder="Бележки за месеца..."></textarea>
-      </div>
     </div>
 
     <div class="tab-panel" id="tab-history">
